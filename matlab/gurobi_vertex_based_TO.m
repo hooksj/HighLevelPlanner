@@ -1,5 +1,26 @@
 function gurobi_vertex_based_TO()
 
+% ========================================================================
+% This is a high level planner that will pass footstep locations and a
+% desired CM trajectory to a low level MPC. 
+% 
+% - End conditions and foot a footstep plan is created based off of forward
+%   integration of the user input commands.
+%
+% - These conditions are passed to a QP solved by gurobi to come up with a
+%   feasible CM trajectory for the given conditions.
+% 
+% USER INPUTS
+% w - Positive Y
+% s - Negative Y
+% d - Positive X
+% a - Negative X
+% j - Positive yaw
+% d - Negative yaw
+% q - Quit
+%
+% ========================================================================
+
     % Setup the structures for handling user inputs
     KeyStatus = false(1,7);
     KeyNames = {'w', 's','a', 'd', 'j', 'k', 'q'};
@@ -42,17 +63,20 @@ function gurobi_vertex_based_TO()
     % Vectors for storing X and Y positions
     X = zeros(10*np,1);
     Y = zeros(10*np,1);
+    
+    % Body dimensions
+    body = [0.1, -0.1, -0.1, 0.1;
+            0.25, 0.25, -0.25, -0.25];
 
     % Setup figure for graphical display
     % - Callback functions are used to detect user inputs
-    f1 = figure('KeyPressFcn', @MyKeyDown, 'KeyReleaseFcn', @MyKeyUp);
-    h = animatedline;
-    axis([-10.0 10.0 -10.0 10.0]);
-    addpoints(h,X',Y')
+    figure('Name', 'ALPHRED V3 Simulation', 'KeyPressFcn', @MyKeyDown, 'KeyReleaseFcn', @MyKeyUp);
+    axis([-1.5 1.5 -1.5 1.5]);
+    H = patch(body(1,:),body(2,:), 'red');
     
     n = 0;
 
-    % Main loop for simulation
+    %% Main loop for simulation
     while 1
         % Booleans determining if the robot should start decelerating
         y_decelerate = 1;
@@ -158,19 +182,25 @@ function gurobi_vertex_based_TO()
             end
         end
         
-        clearpoints(h)
-        addpoints(h,X',Y')
-        drawnow
+        % Animation
+        points = zeros(2,4);
+        for i = 1:4
+            points(:,i) = x(1:2,1)+yaw_rot(x(9,1))*(body(:,i));
+        end
+        set(H, 'XData', points(1,:));
+        set(H, 'YData', points(2,:));
+        drawnow;
         
         pause(0.1);
         
         n = n + 1;
-        axis([-10.0+X(n), 10.0+X(n), -10.0+Y(n), 10.0+Y(n)]);
+        axis([-1.5+x(1,1), 1.5+x(1,1), -1.5+x(2,1), 1.5+x(2,1)]);
         if n > np
             n = 0;
         end
     end
 
+    %% Callback function for detecting key presses
     function MyKeyDown(hObject, event, handles)
         key = get(hObject,'CurrentKey');
         KeyStatus = (strcmp(key, KeyNames) | KeyStatus);

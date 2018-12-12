@@ -41,9 +41,9 @@ function gurobi_vertex_based_TO()
     y_dot = 0.0;   % Robot frame
     
     % Limits on velocity and acceleration parameters
-    max_x_dot = 1.0;
-    max_y_dot = 1.0;
-    max_yaw_dot = 1.0;
+    max_x_dot = 0.5;
+    max_y_dot = 1.5;
+    max_yaw_dot = 1.5;
     x_accel = 0.1;
     y_accel = 0.1;
     yaw_accel = 0.2;
@@ -52,8 +52,9 @@ function gurobi_vertex_based_TO()
     yaw_decel = 0.5;
 
     % Look ahead timing parameters
-    T_final = 0.5;
-    dt = 0.01;
+    step_time = 0.25;
+    T_final = 2*step_time;
+    dt = 0.001;
     np = T_final/dt;
     t = linspace(0.0, T_final, np);
 
@@ -66,15 +67,43 @@ function gurobi_vertex_based_TO()
     
     % Body dimensions
     body = [0.1, -0.1, -0.1, 0.1;
-            0.25, 0.25, -0.25, -0.25];
+            0.2, 0.2, -0.2, -0.2];
+        
+    % Foot parameters
+    t1 = [0.0, step_time];
+    t2 = [step_time, 2.0*step_time];
+    t3 = [0.0, step_time];
+    t4 = [step_time, 2.0*step_time];
+    
+    c = [1, 1, 1, 1];
+    
+    p1_nom = [0.15; 0.25];
+    p2_nom = [-0.15; 0.25];
+    p3_nom = [-0.15; -0.25];
+    p4_nom = [0.15; -0.25];
+    
+    p1 = p1_nom;
+    p2 = p2_nom;
+    p3 = p3_nom;
+    p4 = p4_nom;
 
     % Setup figure for graphical display
     % - Callback functions are used to detect user inputs
     figure('Name', 'ALPHRED V3 Simulation', 'KeyPressFcn', @MyKeyDown, 'KeyReleaseFcn', @MyKeyUp);
     axis([-1.5 1.5 -1.5 1.5]);
     H = patch(body(1,:),body(2,:), 'red');
+    foot1 = animatedline('Marker','x');
+    foot2 = animatedline('Marker','x');
+    foot3 = animatedline('Marker','x');
+    foot4 = animatedline('Marker','x');
+    addpoints(foot1, p1(1,1), p1(2,1));
+    addpoints(foot2, p2(1,1), p2(2,1));
+    addpoints(foot3, p3(1,1), p3(2,1));
+    addpoints(foot4, p4(1,1), p4(2,1));
     
-    n = 0;
+    x_animate = x;
+    
+    X = zeros(length(x),np);
 
     %% Main loop for simulation
     while 1
@@ -166,8 +195,8 @@ function gurobi_vertex_based_TO()
            break 
         end
         
-        % Coarsly integrate forward to find final state
-        for i = 1:10
+        % integrate forward to find final state
+        for i = 1:np
             % Linear
             x(4:5,1) = yaw_rot(x(9,1))*[x_dot;y_dot];
             x(1:2,1) = x(1:2,1) + x(4:5,1)*dt;
@@ -175,29 +204,91 @@ function gurobi_vertex_based_TO()
             % Rotational
             x(12,1) = yaw_dot;
             x(9,1) = x(9,1) + x(12,1)*dt;
-
-            if i < 11
-                X(n*10+i) = x(1,1);
-                Y(n*10+i) = x(2,1);
+            
+            if i == 25
+                x_animate = x;
             end
+            
+            X(:,i) = x;
         end
+        
         
         % Animation
         points = zeros(2,4);
         for i = 1:4
-            points(:,i) = x(1:2,1)+yaw_rot(x(9,1))*(body(:,i));
+            points(:,i) = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(body(:,i));
         end
         set(H, 'XData', points(1,:));
         set(H, 'YData', points(2,:));
+        axis([-1.5+x_animate(1,1), 1.5+x_animate(1,1),...
+            -1.5+x_animate(2,1), 1.5+x_animate(2,1)]);
         drawnow;
         
-        pause(0.1);
+        pause(0.025);
         
-        n = n + 1;
-        axis([-1.5+x(1,1), 1.5+x(1,1), -1.5+x(2,1), 1.5+x(2,1)]);
-        if n > np
-            n = 0;
+        % Set the current state back to the animation state
+        x = x_animate;
+        
+        t1 = t1 - [0.025, 0.025];
+        if t1(1) < 0.0
+           if c(1) == 0
+              c(1) = 1; 
+              p1 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p1_nom) + ...
+                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
+              addpoints(foot1,p1(1,1),p1(2,1));
+           else
+              c(1) = 0;
+              clearpoints(foot1);
+           end
+           t1(1) = t1(2);
+           t1(2) = 2.0*step_time - 0.025;
         end
+        
+        t2 = t2 - [0.025, 0.025];
+        if t2(1) < 0.0
+           if c(2) == 0
+              c(2) = 1; 
+              p2 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p2_nom) + ...
+                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
+              addpoints(foot2,p2(1,1),p2(2,1));
+           else
+              c(2) = 0;
+              clearpoints(foot2);
+           end
+           t2(1) = t2(2);
+           t2(2) = 2.0*step_time - 0.025;
+        end
+        
+        t3 = t3 - [0.025, 0.025];
+        if t3(1) < 0.0
+           if c(3) == 0
+              c(3) = 1; 
+              p3 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p3_nom) + ...
+                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
+              addpoints(foot3,p3(1,1),p3(2,1));
+           else
+              c(3) = 0;
+              clearpoints(foot3);
+           end
+           t3(1) = t3(2);
+           t3(2) = 2.0*step_time - 0.025;
+        end
+        
+        t4 = t4 - [0.025, 0.025];
+        if t4(1) < 0.0
+           if c(4) == 0
+              c(4) = 1; 
+              p4 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p4_nom) + ...
+                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
+              addpoints(foot4,p4(1,1),p4(2,1));
+           else
+              c(4) = 0;
+              clearpoints(foot4);
+           end
+           t4(1) = t4(2);
+           t4(2) = 2.0*step_time - 0.025;
+        end
+        
     end
 
     %% Callback function for detecting key presses

@@ -1,5 +1,5 @@
-function gurobi_vertex_based_TO()
-
+function simple_planner()
+    addpath('/home/romela/Deadbeat_Controller/Gurobi')
 % ========================================================================
 % This is a high level planner that will pass footstep locations and a
 % desired CM trajectory to a low level MPC. 
@@ -20,8 +20,6 @@ function gurobi_vertex_based_TO()
 % q - Quit
 %
 % ========================================================================
-
-    addpath('/home/romela/Deadbeat_Controller/Gurobi')
 
     % Setup the structures for handling user inputs
     KeyStatus = false(1,7);
@@ -44,7 +42,7 @@ function gurobi_vertex_based_TO()
     
     % Limits on velocity and acceleration parameters
     max_x_dot = 0.5;
-    max_y_dot = 1.5;
+    max_y_dot = 1.0;
     max_yaw_dot = 1.5;
     x_accel = 0.1;
     y_accel = 0.1;
@@ -106,21 +104,209 @@ function gurobi_vertex_based_TO()
     addpoints(foot4, p4(1,1), p4(2,1));
     
     x_animate = x;
+    t1_animate = t1;
+    t2_animate = t2;
+    t3_animate = t3;
+    t4_animate = t4;
+    c_animate = c;
     
     X = zeros(length(x),np);
     F1 = zeros(3,np);
     F2 = zeros(3,np);
     F3 = zeros(3,np);
     F4 = zeros(3,np);
+    P1 = zeros(2,np);
+    P2 = zeros(2,np);
+    P3 = zeros(2,np);
+    P4 = zeros(2,np);
+    T1 = zeros(np,2);
+    T2 = zeros(np,2);
+    T3 = zeros(np,2);
+    T4 = zeros(np,2);
+    C = zeros(np,4);
     
     controller = DeadbeatControllerGurobi_class;
+    
+    animate_count = 0;
 
     %% Main loop for simulation
     while 1
+        
+        % Check the user inputs to update the desired velocities
+        quit = CheckUserInputs();
+        if (quit == 1)
+            close all;
+            break
+        end
+
+        
+        % integrate forward to find final state
+        for i = 1:np
+            % Linear
+            x(4:5,1) = yaw_rot(x(9,1))*[x_dot;y_dot];
+            x(1:2,1) = x(1:2,1) + x(4:5,1)*dt;
+
+            % Rotational
+            x(12,1) = yaw_dot;
+            x(9,1) = x(9,1) + x(12,1)*dt;
+            
+            X(:,i) = x;
+            
+            % Determine the footstep locations
+            t1 = t1 - [dt, dt];
+            if t1(1) < 0.0
+               if c(1) == 0
+                  c(1) = 1; 
+                  p1 = x(1:2,1)+yaw_rot(x(9,1))*(p1_nom) + ...
+                      yaw_rot(x(9,1))*[x_dot;y_dot]*step_time*0.5;
+               else
+                  c(1) = 0;
+               end
+               t1(1) = t1(2);
+               t1(2) = 2.0*step_time - dt;
+            end
+
+            t2 = t2 - [dt, dt];
+            if t2(1) < 0.0
+               if c(2) == 0
+                  c(2) = 1; 
+                  p2 = x(1:2,1)+yaw_rot(x(9,1))*(p2_nom) + ...
+                      yaw_rot(x(9,1))*[x_dot;y_dot]*step_time*0.5;
+               else
+                  c(2) = 0;
+               end
+               t2(1) = t2(2);
+               t2(2) = 2.0*step_time - dt;
+            end
+
+            t3 = t3 - [dt, dt];
+            if t3(1) < 0.0
+               if c(3) == 0
+                  c(3) = 1; 
+                  p3 = x(1:2,1)+yaw_rot(x(9,1))*(p3_nom) + ...
+                      yaw_rot(x(9,1))*[x_dot;y_dot]*step_time*0.5;
+               else
+                  c(3) = 0;
+               end
+               t3(1) = t3(2);
+               t3(2) = 2.0*step_time - dt;
+            end
+
+            t4 = t4 - [dt, dt];
+            if t4(1) < 0.0
+               if c(4) == 0
+                  c(4) = 1; 
+                  p4 = x(1:2,1)+yaw_rot(x(9,1))*(p4_nom) + ...
+                      yaw_rot(x(9,1))*[x_dot;y_dot]*step_time*0.5;
+               else
+                  c(4) = 0;
+               end
+               t4(1) = t4(2);
+               t4(2) = 2.0*step_time - dt;
+            end
+            
+            % Store trajectory
+            P1(:,i) = p1;
+            P2(:,i) = p2;
+            P3(:,i) = p3;
+            P4(:,i) = p4;
+            T1(i,:) = t1;
+            T2(i,:) = t2;
+            T3(i,:) = t3;
+            T4(i,:) = t4;
+            C(i,:) = c;
+        end
+        
+        x0 = X(:,1);
+        
+        % Simulate dynamics
+        for n = 2:26
+            [F, A] = controller.update(x0, [P1(:,n);0.0], [P2(:,n);0.0], ...
+                     [P3(:,n);0.0], [P4(:,n);0.0], C(n,:), X(:,n));
+                 
+            F;
+            
+            [t,state] = ode45(@(t,state) simulateDynamics(t,state,F,A), [0 dt], x0);
+            state(end,:)' - x0;
+            x0 = state(end,:)';
+            
+            %disp('======')
+        end
+        
+        % Set the current state to the last simulated state
+        x = x0;
+        t1 = T1(26,:);
+        t2 = T2(26,:);
+        t3 = T3(26,:);
+        t4 = T4(26,:);
+        p1 = P1(:,26);
+        p2 = P2(:,26);
+        p3 = P3(:,26);
+        p4 = P4(:,26);
+        c = C(26,:);
+        
+        % Animation
+        animate_count = animate_count + 1;
+        if animate_count == 4
+            animate_count = 0;
+            x_animate = x;
+            clearpoints(foot1);
+            clearpoints(foot2);
+            clearpoints(foot3);
+            clearpoints(foot4);
+            if c(1) == 1
+                addpoints(foot1,p1(1,1),p1(2,1));
+            end
+
+            if c(2) == 1
+                addpoints(foot2,p2(1,1),p2(2,1));
+            end
+
+            if c(3) == 1
+                addpoints(foot3,p3(1,1),p3(2,1));
+            end
+
+            if c(4) == 1
+                addpoints(foot4,p4(1,1),p4(2,1));
+            end
+            animate();   
+        end
+        
+    end
+
+    %% Callback function for detecting key presses
+    function MyKeyDown(hObject, event, handles)
+        key = get(hObject,'CurrentKey');
+        KeyStatus = (strcmp(key, KeyNames) | KeyStatus);
+    end
+    function MyKeyUp(hObject, event, handles)
+        key = get(hObject,'CurrentKey');
+        KeyStatus = (~strcmp(key, KeyNames) & KeyStatus);
+    end
+
+    %% Animate function
+    function animate()
+        points = zeros(2,4);
+        for j = 1:4
+            points(:,j) = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(body(:,j));
+        end
+        set(H, 'XData', points(1,:));
+        set(H, 'YData', points(2,:));
+        axis([-1.5+x_animate(1,1), 1.5+x_animate(1,1),...
+            -1.5+x_animate(2,1), 1.5+x_animate(2,1)]);
+        drawnow;
+        
+        pause(0.1);
+        
+    end
+
+    %% Check user inputs function
+    function quit = CheckUserInputs()
         % Booleans determining if the robot should start decelerating
         y_decelerate = 1;
         x_decelerate = 1;
         yaw_decelerate = 1;
+        quit = 0;
 
         % ============================
         % Check User Inputs
@@ -201,116 +387,8 @@ function gurobi_vertex_based_TO()
         end
         
         if KeyStatus(KEY.QUIT)
-            close all;
-           break 
+            quit = 1;
         end
-        
-        % integrate forward to find final state
-        for i = 1:np
-            % Linear
-            x(4:5,1) = yaw_rot(x(9,1))*[x_dot;y_dot];
-            x(1:2,1) = x(1:2,1) + x(4:5,1)*dt;
-
-            % Rotational
-            x(12,1) = yaw_dot;
-            x(9,1) = x(9,1) + x(12,1)*dt;
-            
-            if i == 25
-                x_animate = x;
-            end
-            
-            X(:,i) = x;
-        end
-        
-        
-        % Animation
-        points = zeros(2,4);
-        for i = 1:4
-            points(:,i) = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(body(:,i));
-        end
-        set(H, 'XData', points(1,:));
-        set(H, 'YData', points(2,:));
-        axis([-1.5+x_animate(1,1), 1.5+x_animate(1,1),...
-            -1.5+x_animate(2,1), 1.5+x_animate(2,1)]);
-        drawnow;
-        
-        pause(0.025);
-        
-        % Set the current state back to the animation state
-        x = x_animate;
-        
-        t1 = t1 - [0.025, 0.025];
-        if t1(1) < 0.0
-           if c(1) == 0
-              c(1) = 1; 
-              p1 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p1_nom) + ...
-                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
-              addpoints(foot1,p1(1,1),p1(2,1));
-           else
-              c(1) = 0;
-              clearpoints(foot1);
-           end
-           t1(1) = t1(2);
-           t1(2) = 2.0*step_time - 0.025;
-        end
-        
-        t2 = t2 - [0.025, 0.025];
-        if t2(1) < 0.0
-           if c(2) == 0
-              c(2) = 1; 
-              p2 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p2_nom) + ...
-                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
-              addpoints(foot2,p2(1,1),p2(2,1));
-           else
-              c(2) = 0;
-              clearpoints(foot2);
-           end
-           t2(1) = t2(2);
-           t2(2) = 2.0*step_time - 0.025;
-        end
-        
-        t3 = t3 - [0.025, 0.025];
-        if t3(1) < 0.0
-           if c(3) == 0
-              c(3) = 1; 
-              p3 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p3_nom) + ...
-                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
-              addpoints(foot3,p3(1,1),p3(2,1));
-           else
-              c(3) = 0;
-              clearpoints(foot3);
-           end
-           t3(1) = t3(2);
-           t3(2) = 2.0*step_time - 0.025;
-        end
-        
-        t4 = t4 - [0.025, 0.025];
-        if t4(1) < 0.0
-           if c(4) == 0
-              c(4) = 1; 
-              p4 = x_animate(1:2,1)+yaw_rot(x_animate(9,1))*(p4_nom) + ...
-                  yaw_rot(x_animate(9,1))*[x_dot;y_dot]*step_time*0.5;
-              addpoints(foot4,p4(1,1),p4(2,1));
-           else
-              c(4) = 0;
-              clearpoints(foot4);
-           end
-           t4(1) = t4(2);
-           t4(2) = 2.0*step_time - 0.025;
-        end
-        
-        F = controller.update(x_animate, [p1;0.0], [p2;0.0], [p3;0.0], [p4;0.0], c, x_animate);
-        
-    end
-
-    %% Callback function for detecting key presses
-    function MyKeyDown(hObject, event, handles)
-        key = get(hObject,'CurrentKey');
-        KeyStatus = (strcmp(key, KeyNames) | KeyStatus);
-    end
-    function MyKeyUp(hObject, event, handles)
-        key = get(hObject,'CurrentKey');
-        KeyStatus = (~strcmp(key, KeyNames) & KeyStatus);
     end
 
 end

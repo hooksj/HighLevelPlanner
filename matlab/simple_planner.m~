@@ -168,7 +168,7 @@ function simple_planner()
                   c(1) = 0;
                end
                t1(1) = t1(2);
-               t1(2) = 4.0*step_time - dt;
+               t1(2) = 2.0*step_time - dt;
             end
 
             t2 = t2 - [dt, dt];
@@ -181,7 +181,7 @@ function simple_planner()
                   c(2) = 0;
                end
                t2(1) = t2(2);
-               t2(2) = 4.0*step_time - dt;
+               t2(2) = 2.0*step_time - dt;
             end
 
             t3 = t3 - [dt, dt];
@@ -194,7 +194,7 @@ function simple_planner()
                   c(3) = 0;
                end
                t3(1) = t3(2);
-               t3(2) = 4.0*step_time - dt;
+               t3(2) = 2.0*step_time - dt;
             end
 
             t4 = t4 - [dt, dt];
@@ -207,7 +207,7 @@ function simple_planner()
                   c(4) = 0;
                end
                t4(1) = t4(2);
-               t4(2) = 4.0*step_time - dt;
+               t4(2) = 2.0*step_time - dt;
             end
             
             % Store trajectory

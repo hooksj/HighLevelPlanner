@@ -1,24 +1,6 @@
 classdef Animation_class < handle
     properties
-        
-        KeyStatus = false(1,7);
-        KeyNames = {'w', 's','a', 'd', 'j', 'k', 'q'};
-        
-        % Limits on velocity and acceleration parameters
-        max_x_dot = 0.8;
-        max_y_dot = 0.2;
-        max_yaw_dot = 0.3;
-        x_accel = 0.1;
-        y_accel = 0.1;
-        yaw_accel = 0.1;
-        x_decel = 0.05;
-        y_decel = 0.01;
-        yaw_decel = 0.1;
-        
-        x_dot = 0.0;
-        y_dot = 0.0;
-        yaw_dot = 0.0;
-        
+       
         % Body dimensions if the CM is at (0,0,0)
         body_points = [0.15  0.0 -0.05;...
                        0.0  0.15 -0.05;...
@@ -113,122 +95,8 @@ classdef Animation_class < handle
                  -sin(x(2))                        cos(x(2))*sin(x(1))                               cos(x(2))*cos(x(1))                ];
         end
         
-        function [X,Y,YAW,quit] = CheckUserInputs(obj)
-            KEY.FORWARD = 1;
-            KEY.BACKWARD = 2;
-            KEY.LEFT = 3;
-            KEY.RIGHT = 4;
-            KEY.ROT_LEFT = 5;
-            KEY.ROT_RIGHT = 6;
-            KEY.QUIT = 7;
-            
-            % Booleans determining if the robot should start decelerating
-            y_decelerate = 1;
-            x_decelerate = 1;
-            yaw_decelerate = 1;
-            quit = 0;
-            
-            X = 0.0;
-            Y = 0.0;
-            YAW = 0.0;
-
-            % ============================
-            % Check User Inputs
-            %=============================
-            if obj.fig.UserData(KEY.RIGHT)
-                y_decelerate = 0;
-                Y = obj.y_dot + obj.y_accel;
-                if Y > obj.max_y_dot
-                    Y = obj.max_y_dot;
-                end
-            end
-
-            if obj.fig.UserData(KEY.LEFT)
-                y_decelerate = 0;
-                Y = obj.y_dot - obj.y_accel;
-                if Y < -obj.max_y_dot
-                    Y = -obj.max_y_dot;
-                end
-            end
-
-            if y_decelerate
-                if sign(obj.y_dot)*obj.y_dot < obj.y_decel
-                   Y = 0.0; 
-                end
-                if sign(Y)*Y > 0.0
-                   Y = obj.y_dot - sign(obj.y_dot)*obj.y_decel;
-                end
-            end
-
-            if obj.fig.UserData(KEY.FORWARD)
-                x_decelerate = 0;
-                X = obj.x_dot + obj.x_accel;
-                if X > obj.max_x_dot
-                    X = obj.max_x_dot;
-                end
-            end
-
-            if obj.fig.UserData(KEY.BACKWARD)
-                x_decelerate = 0;
-                X = obj.x_dot - obj.x_accel;
-                if X < -obj.max_x_dot
-                    X = -obj.max_x_dot;
-                end
-            end
-
-            if x_decelerate
-                if sign(obj.x_dot)*obj.x_dot < obj.x_decel
-                   X = 0.0; 
-                end
-                if sign(obj.x_dot)*obj.x_dot > 0.0
-                   X = obj.x_dot - sign(obj.x_dot)*obj.x_decel;
-                end
-            end
-
-            if obj.fig.UserData(KEY.ROT_LEFT)
-                yaw_decelerate = 0;
-                YAW = obj.yaw_dot + obj.yaw_accel;
-                if YAW > obj.max_yaw_dot
-                    YAW = obj.max_yaw_dot;
-                end
-            end
-
-            if obj.fig.UserData(KEY.ROT_RIGHT)
-                yaw_decelerate = 0;
-                YAW = obj.yaw_dot - obj.yaw_accel;
-                if YAW < -obj.max_yaw_dot
-                    YAW = -obj.max_yaw_dot;
-                end
-            end
-
-            if yaw_decelerate
-                if sign(obj.yaw_dot)*obj.yaw_dot < obj.yaw_decel
-                   YAW = 0.0; 
-                end
-                if sign(obj.yaw_dot)*obj.yaw_dot > 0.0
-                   YAW = obj.yaw_dot - sign(obj.yaw_dot)*obj.yaw_decel;
-                end
-            end
-            
-            obj.x_dot = X;
-            obj.y_dot = Y;
-            obj.yaw_dot = YAW;
-
-            if obj.fig.UserData(KEY.QUIT)
-                quit = 1;
-            end
-        end
-        
-        function obj = set.x_dot(obj, num)
-           obj.x_dot = num; 
-        end
-        
-        function obj = set.y_dot(obj, num)
-           obj.y_dot = num; 
-        end
-        
-        function obj = set.yaw_dot(obj, num)
-           obj.yaw_dot = num; 
+        function inputs = GetUserInputs(obj)
+            inputs = obj.fig.UserData;
         end
         
     end
@@ -238,26 +106,12 @@ end
 %% Callback function for detecting key presses
 function MyKeyDown(hObject, event, handles)
     KeyNames = {'w', 's','a', 'd', 'j', 'k', 'q'};
-    KEY.FORWARD = 1;
-    KEY.BACKWARD = 2;
-    KEY.LEFT = 3;
-    KEY.RIGHT = 4;
-    KEY.ROT_LEFT = 5;
-    KEY.ROT_RIGHT = 6;
-    KEY.QUIT = 7;
     key = get(hObject,'CurrentKey');
     hObject.UserData = (strcmp(key, KeyNames) | hObject.UserData);
 end
 
 function MyKeyUp(hObject, event, handles)
     KeyNames = {'w', 's','a', 'd', 'j', 'k', 'q'};
-    KEY.FORWARD = 1;
-    KEY.BACKWARD = 2;
-    KEY.LEFT = 3;
-    KEY.RIGHT = 4;
-    KEY.ROT_LEFT = 5;
-    KEY.ROT_RIGHT = 6;
-    KEY.QUIT = 7;
     key = get(hObject,'CurrentKey');
     hObject.UserData = (~strcmp(key, KeyNames) & hObject.UserData);
 end

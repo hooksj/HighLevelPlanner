@@ -192,6 +192,8 @@ function simple_planner()
                                                    [P4(:,n);0.0], C(n,:), X(:,n), dt);
         end
         
+        [F, current_state, X(:,n)]
+        
         % Set the current state to the last simulated state
         x = current_state;
         xd = X(:,26);
@@ -212,7 +214,6 @@ function simple_planner()
             animator.update(x,p1,p2,p3,p4,c); 
         end
         
-        % If the robot is going unstable stop the animation
         if abs(x(4,1)) > 0.7
            break; 
         end

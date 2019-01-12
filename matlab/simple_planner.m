@@ -24,10 +24,11 @@ function simple_planner()
     yaw_rot = @(x) [cos(x), -sin(x); sin(x) cos(x);];
 
     % Look ahead timing parameters
-    step_time = 0.2;
-    T_final = 2*step_time;
+    swing_time = 0.2;
+    stance_time = 0.3;
+    T_final = swing_time + stance_time;
     dt = 0.001;
-    np = T_final/dt;
+    np = int64(T_final/dt);
     t = linspace(0.0, T_final, np);
 
     % State vector in the inertial frame
@@ -42,22 +43,27 @@ function simple_planner()
             0.2, 0.2, -0.2, -0.2];
         
     % Foot parameters
-%     t1 = [0.0, step_time];
-%     t2 = [step_time, 2.0*step_time];
-%     t3 = [0.0, step_time];
-%     t4 = [step_time, 2.0*step_time];
+    t1 = [0.0, swing_time];
+    t2 = [stance_time-(stance_time-swing_time)*0.5, swing_time+stance_time-(stance_time-swing_time)*0.5];
+    t3 = [0.0, swing_time];
+    t4 = [stance_time-(stance_time-swing_time)*0.5, swing_time+stance_time-(stance_time-swing_time)*0.5];
     
-    t1 = [0.0, step_time];
-    t2 = [2.0*step_time, 3.0*step_time];
-    t3 = [step_time, 2.0*step_time];
-    t4 = [3.0*step_time, 4.0*step_time];
+%     t1 = [0.0, step_time];
+%     t2 = [2.0*step_time, 3.0*step_time];
+%     t3 = [step_time, 2.0*step_time];
+%     t4 = [3.0*step_time, 4.0*step_time];
+    
+%     t1 = [step_time, 2.0*step_time];
+%     t2 = [3.0*step_time, 4.0*step_time];
+%     t3 = [0.0, step_time];
+%     t4 = [2.0*step_time, 3.0*step_time];
     
     c = [1, 1, 1, 1];
     
-    p1_nom = [0.25; 0.15];
-    p2_nom = [-0.25; 0.15];
-    p3_nom = [-0.25; -0.15];
-    p4_nom = [0.25; -0.15];
+    p1_nom = [0.3; 0.2];
+    p2_nom = [-0.3; 0.2];
+    p3_nom = [-0.3; -0.2];
+    p4_nom = [0.3; -0.2];
     
     p1 = p1_nom;
     p2 = p2_nom;
@@ -114,12 +120,12 @@ function simple_planner()
                if c(1) == 0
                   c(1) = 1; 
                   p1 = x(1:2,1)+yaw_rot(x(6,1))*(p1_nom) + ...
-                      yaw_rot(x(6,1))*[x_dot;y_dot]*step_time*0.5;
+                      yaw_rot(x(6,1))*[x_dot;y_dot]*stance_time*0.5;
                else
                   c(1) = 0;
                end
                t1(1) = t1(2);
-               t1(2) = 4.0*step_time - dt;
+               t1(2) = swing_time+stance_time - dt;
             end
 
             t2 = t2 - [dt, dt];
@@ -127,12 +133,12 @@ function simple_planner()
                if c(2) == 0
                   c(2) = 1; 
                   p2 = x(1:2,1)+yaw_rot(x(6,1))*(p2_nom) + ...
-                      yaw_rot(x(6,1))*[x_dot;y_dot]*step_time*0.5;
+                      yaw_rot(x(6,1))*[x_dot;y_dot]*stance_time*0.5;
                else
                   c(2) = 0;
                end
                t2(1) = t2(2);
-               t2(2) = 4.0*step_time - dt;
+               t2(2) = swing_time+stance_time - dt;
             end
 
             t3 = t3 - [dt, dt];
@@ -140,12 +146,12 @@ function simple_planner()
                if c(3) == 0
                   c(3) = 1; 
                   p3 = x(1:2,1)+yaw_rot(x(6,1))*(p3_nom) + ...
-                      yaw_rot(x(6,1))*[x_dot;y_dot]*step_time*0.5;
+                      yaw_rot(x(6,1))*[x_dot;y_dot]*stance_time*0.5;
                else
                   c(3) = 0;
                end
                t3(1) = t3(2);
-               t3(2) = 4.0*step_time - dt;
+               t3(2) = swing_time+stance_time - dt;
             end
 
             t4 = t4 - [dt, dt];
@@ -153,12 +159,12 @@ function simple_planner()
                if c(4) == 0
                   c(4) = 1; 
                   p4 = x(1:2,1)+yaw_rot(x(6,1))*(p4_nom) + ...
-                      yaw_rot(x(6,1))*[x_dot;y_dot]*step_time*0.5;
+                      yaw_rot(x(6,1))*[x_dot;y_dot]*stance_time*0.5;
                else
                   c(4) = 0;
                end
                t4(1) = t4(2);
-               t4(2) = 4.0*step_time - dt;
+               t4(2) = swing_time+stance_time - dt;
             end
             
             % Store trajectory
@@ -197,7 +203,7 @@ function simple_planner()
         
         % Animation
         animate_count = animate_count + 1;
-        if animate_count == 6
+        if animate_count == 1
             animate_count = 0;
             animator.update(x,p1,p2,p3,p4,c); 
         end

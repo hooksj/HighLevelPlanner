@@ -25,7 +25,7 @@ function simple_planner()
 
     % Look ahead timing parameters
     swing_time = 0.2;
-    stance_time = 0.3;
+    stance_time = 0.22;
     T_final = swing_time + stance_time;
     dt = 0.001;
     np = int64(T_final/dt);

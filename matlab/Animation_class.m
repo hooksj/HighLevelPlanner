@@ -5,15 +5,15 @@ classdef Animation_class < handle
         KeyNames = {'w', 's','a', 'd', 'j', 'k', 'q'};
         
         % Limits on velocity and acceleration parameters
-        max_x_dot = 0.5;
+        max_x_dot = 0.8;
         max_y_dot = 0.2;
         max_yaw_dot = 0.3;
         x_accel = 0.1;
         y_accel = 0.1;
         yaw_accel = 0.1;
-        x_decel = 0.01;
+        x_decel = 0.05;
         y_decel = 0.01;
-        yaw_decel = 0.05;
+        yaw_decel = 0.1;
         
         x_dot = 0.0;
         y_dot = 0.0;

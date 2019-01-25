@@ -107,9 +107,12 @@ function simple_planner()
             close all;
             break
         end
-
+        
         % Build the desired trajectory for 2 steps
         for i = 1:np  
+            x(4,1) = 0.0;
+            x(5,1) = 0.0;
+            
             % Linear
             xd(7:8,1) = yaw_rot(xd(6,1))*[x_dot;y_dot];
             xd(1:2,1) = xd(1:2,1) + xd(7:8,1)*dt;

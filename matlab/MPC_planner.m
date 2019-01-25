@@ -1,5 +1,5 @@
-function simple_planner()
-    addpath('/home/romela/Deadbeat_Controller/Gurobi')
+function MPC_planner()
+    addpath('/home/romela/MPC/matlab')
 % ========================================================================
 % This is a high level planner that will pass footstep locations and a
 % desired CM trajectory to a QP. 
@@ -29,7 +29,7 @@ function simple_planner()
     
     % Timing parameters
     T_final = swing_time + stance_time; % final time of the entire plan
-    dt = 0.001; % time step of the QP
+    dt = 0.03; % time step of the QP
     np = int64(T_final/dt);
     t = linspace(0.0, T_final, np);
 
@@ -90,7 +90,20 @@ function simple_planner()
     T4 = zeros(np,2);
     C = zeros(np,4);
     
-    controller = DeadbeatControllerGurobi_class;
+    x0 = zeros(13,1);
+    x0(3,1) = 0.5;
+    x0(13,1) = -9.81;
+    
+    x_ref = zeros(13*np,1);
+    
+    v1 = zeros(3*np,1);
+    v2 = zeros(3*np,1);
+    v3 = zeros(3*np,1);
+    v4 = zeros(3*np,1);
+    
+    avg_yaw = 0.0;
+    
+    controller = MPCControllerGurobi_class(np,0.03);
     
     animate_count = 0;
     
@@ -107,18 +120,39 @@ function simple_planner()
             close all;
             break
         end
-
+        
+        C(1,:) = ones(1,4);
+        
+        v1(1:3,1) = [p1; 0.0] - x0(1:3,1);
+        v2(1:3,1) = [p2; 0.0] - x0(1:3,1);
+        v3(1:3,1) = [p3; 0.0] - x0(1:3,1);
+        v4(1:3,1) = [p4; 0.0] - x0(1:3,1);
+        
         % Build the desired trajectory for 2 steps
-        for i = 1:np  
+        for i = 2:np  
+            
+            if i == 2
+               % Set the initial conditions to the current state
+               x_ref(1:13,1) = x0; 
+               
+               % No desired roll or pitch
+               x_ref(3,1) = 0.5;
+               x_ref(4:5,1) = [0.0; 0.0];
+               x_ref(10:11,1) = [0.0; 0.0];
+            end
+            
             % Linear
-            xd(7:8,1) = yaw_rot(xd(6,1))*[x_dot;y_dot];
-            xd(1:2,1) = xd(1:2,1) + xd(7:8,1)*dt;
+            x_ref(13*(i-1)+7:13*(i-1)+8,1) = yaw_rot(x_ref(13*(i-2)+6))*[x_dot;y_dot];
+            x_ref(13*(i-1)+1:13*(i-1)+2,1) = x_ref(13*(i-2)+1:13*(i-2)+2,1) + x_ref(13*(i-2)+7:13*(i-2)+8,1)*dt;
+            x_ref(13*(i-1)+3,1) = 0.5;
 
             % Rotational
-            xd(12,1) = yaw_dot;
-            xd(6,1) = xd(6,1) + xd(12,1)*dt;
+            x_ref(13*(i-1)+12,1) = yaw_dot;
+            x_ref(13*(i-1)+6,1) = x_ref(13*(i-2)+6,1) + x_ref(13*(i-2)+12,1)*dt;
             
-            X(:,i) = xd;
+            x_ref(13*(i-1)+13,1) = -9.81;
+            
+            x = x_ref(13*(i-1)+1:13*(i-1)+13);
             
             % Determine the footstep locations
             t1 = t1 - [dt, dt];
@@ -173,6 +207,11 @@ function simple_planner()
                t4(2) = swing_time+stance_time - dt;
             end
             
+            v1(3*(i-1)+1:3*(i-1)+3,1) = [p1; 0.0] - x_ref(13*(i-1)+1:13*(i-1)+3,1);
+            v2(3*(i-1)+1:3*(i-1)+3,1) = [p2; 0.0] - x_ref(13*(i-1)+1:13*(i-1)+3,1);
+            v3(3*(i-1)+1:3*(i-1)+3,1) = [p3; 0.0] - x_ref(13*(i-1)+1:13*(i-1)+3,1);
+            v4(3*(i-1)+1:3*(i-1)+3,1) = [p4; 0.0] - x_ref(13*(i-1)+1:13*(i-1)+3,1);
+            
             % Store trajectory
             P1(:,i) = p1;
             P2(:,i) = p2;
@@ -186,39 +225,36 @@ function simple_planner()
         end
         
         % Simulate dynamics
-        for n = 2:26
-            [F, current_state] = controller.update(current_state, [P1(:,n);0.0], ...
-                                                   [P2(:,n);0.0], [P3(:,n);0.0], ...
-                                                   [P4(:,n);0.0], C(n,:), X(:,n), dt);
-        end
+        [F, x0] = controller.update(x0, x_ref, avg_yaw, v1, v2, v3, v4, C);
         
-        [F, current_state, X(:,n)]
+        F
+        
+        x0
         
         % Set the current state to the last simulated state
-        x = current_state;
-        xd = X(:,26);
-        t1 = T1(26,:);
-        t2 = T2(26,:);
-        t3 = T3(26,:);
-        t4 = T4(26,:);
-        p1 = P1(:,26);
-        p2 = P2(:,26);
-        p3 = P3(:,26);
-        p4 = P4(:,26);
-        c = C(26,:);
+        t1 = T1(2,:);
+        t2 = T2(2,:);
+        t3 = T3(2,:);
+        t4 = T4(2,:);
+        p1 = P1(:,2);
+        p2 = P2(:,2);
+        p3 = P3(:,2);
+        p4 = P4(:,2);
+        c = C(2,:);
         
         % Animation
         animate_count = animate_count + 1;
         if animate_count == 1
             animate_count = 0;
-            animator.update(x,p1,p2,p3,p4,c); 
+            animator.update(x0,p1,p2,p3,p4,c); 
         end
         
-        if abs(x(4,1)) > 0.7
+        % If the robot is going unstable stop the animation
+        if abs(x0(4,1)) > 0.7
            break; 
         end
         
-        if abs(x(5,1)) > 0.7
+        if abs(x0(5,1)) > 0.7
            break; 
         end
         
